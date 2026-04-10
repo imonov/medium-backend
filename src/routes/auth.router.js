@@ -11,4 +11,5 @@ authRouter
         ValidationMiddleware(RegisterSchema),
         authController.register,
     )
-    .post("/signin", ValidationMiddleware(LoginSchema), authController.login);
+    .post("/signin", ValidationMiddleware(LoginSchema), authController.login)
+    .post("/refresh", authController.refresh);

@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import jwtConfig from "../configs/jwt.config.js";
 import { NotFoundException } from "../exceptions/not_found.exception.js";
 import { ConflictException } from "../exceptions/conflict.exception.js";
+import { BadRequestException } from "../exceptions/bad_request.exception.js";
 // import { randomInt } from "node:crypto";
 // import nodemailer from "nodemailer";
 // import emailConfig from "../configs/otp.config.js";
@@ -31,14 +32,17 @@ class AuthController {
                 password: hashedPassword,
             });
 
-            const token = await this.#_generateToken({ id: newUser._id });
+            const accessToken = this.#_generateToken({ id: newUser._id });
+            const refreshToken = this.#_generateRefreshToken({
+                id: newUser._id,
+            });
             // const otp = randomInt(1000, 9999);
             // await this.#_sendOtp(username, otp);
 
             res.status(201).json({
                 success: true,
                 message: "foydalanuvchi yaratildi",
-                data: { token },
+                data: { accessToken, refreshToken },
             });
         } catch (error) {
             next(error);
@@ -65,11 +69,38 @@ class AuthController {
                 throw new ConflictException("parol xato");
             }
 
-            const token = await this.#_generateToken({ id: existingUser._id });
+            const accessToken = this.#_generateToken({ id: existingUser._id });
+            const refreshToken = this.#_generateRefreshToken({
+                id: existingUser._id,
+            });
             // console.log(token);
             res.status(200).json({
                 success: true,
-                data: { token },
+                data: { accessToken, refreshToken },
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    // refresh token
+    refresh = async (req, res, next) => {
+        try {
+            const { refreshToken } = req.body;
+
+            if (!refreshToken) {
+                throw new BadRequestException("token yuborilmagan");
+            }
+
+            const payload = jwt.verify(
+                refreshToken,
+                jwtConfig.REFRESH_SECRET_KEY,
+            );
+
+            const accessToken = this.#_generateRefreshToken({ id: payload.id });
+            res.status(200).json({
+                success: true,
+                accessToken,
             });
         } catch (error) {
             next(error);
@@ -89,10 +120,19 @@ class AuthController {
     };
 
     // generate token
-    #_generateToken = async (payload) => {
+    #_generateToken = (payload) => {
         const token = jwt.sign({ payload }, jwtConfig.SECRET_KEY, {
             algorithm: "HS256",
             expiresIn: jwtConfig.EXPIRE_TIME,
+        });
+
+        return token;
+    };
+
+    #_generateRefreshToken = (payload) => {
+        const token = jwt.sign({ payload }, jwtConfig.REFRESH_SECRET_KEY, {
+            algorithm: "HS256",
+            expiresIn: jwtConfig.REFRESH_EXPIRE_TIME,
         });
 
         return token;
